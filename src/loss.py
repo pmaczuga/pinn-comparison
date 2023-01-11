@@ -1,92 +1,78 @@
 from typing import Tuple
+from src.cpoints import CPoints
+from src.func import InitialCondition
 from src.pinn import PINN, dfdx, dfdt, f
-from config import *
 
 import torch
 
+class Loss:
+    def __init__(self, 
+                 cpoints: CPoints,
+                 initial_condition: InitialCondition,
+                 equation: str = 'linear', 
+                 boundary_condition: str = 'reflective',
+                 c: float = 1,
+                 weight_f: float = 1.0, 
+                 weight_b: float = 1.0, 
+                 weight_i: float = 1.0):
+        self.cpoints = cpoints
+        self.initial_condition = initial_condition
+        self.boundary_condition = boundary_condition
+        self.c = c
+        self.equation = equation
+        self.weight_f = weight_f
+        self.weight_b = weight_b
+        self.weight_i = weight_i
 
-def interior_loss(pinn: PINN, x: torch.Tensor, t: torch.tensor, equation):
-    if equation == 'linear':
-        loss = dfdt(pinn, x, t, order=2) - C**2 * dfdx(pinn, x, t, order=2)
-    else: 
-        loss = dfdt(pinn, x, t, order=2) - C**2 * (dfdx(pinn, x, t, order=2) * f(pinn, x, t) + dfdx(pinn, x, t, order=1).pow(2))
-    return loss.pow(2).mean()
+    def __call__(self, pinn: PINN) -> torch.Tensor:
+        return self.verbose(pinn)[0]
 
-def initial_loss(pinn: PINN, x: torch.Tensor, t_domain: Tuple[float, float], initial_condition):
-    f_initial = initial_condition(x)
-    t_initial = torch.ones_like(x) * t_domain[0]
-    t_initial.requires_grad = True
+    def verbose(self, pinn: PINN) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        residual_loss = self._residual_loss(pinn)
+        initial_loss = self._initial_loss(pinn)
+        boundary_loss = self._boundary_loss(pinn)
 
-    initial_loss_f = f(pinn, x, t_initial) - f_initial 
-    initial_loss_df = dfdt(pinn, x, t_initial, order=1)
+        final_loss = \
+            self.weight_f * residual_loss + \
+            self.weight_i * initial_loss + \
+            self.weight_b * boundary_loss
 
-    return initial_loss_f.pow(2).mean() + initial_loss_df.pow(2).mean()
-
-def boundary_loss(pinn: PINN, t: torch.tensor, x_domain: Tuple[float, float], boundary_condition: str):
-    boundary_left = torch.ones_like(t, requires_grad=True) * x_domain[0]
-    boundary_loss_left = dfdx(pinn, boundary_left, t)
-    
-    boundary_right = torch.ones_like(t, requires_grad=True) * x_domain[1]
-    boundary_loss_right = dfdx(pinn, boundary_right, t)
-
-    if boundary_condition == 'periodic':
-        return (f(pinn, boundary_left, t) - f(pinn, boundary_right, t)).pow(2).mean()
-
-    if boundary_condition == 'reflective':
-        return boundary_loss_left.pow(2).mean() + boundary_loss_right.pow(2).mean()
-
-    if boundary_condition == 'zero':
-        return f(pinn, boundary_left, t).pow(2).mean() + f(pinn, boundary_right, t).pow(2).mean()
-
-def compute_loss(
-    pinn: PINN, 
-    x: torch.Tensor = None, 
-    t: torch.Tensor = None, 
-    x_init: torch.Tensor = None, 
-    initial_condition = None,
-    t_boundary : torch.Tensor = None,
-    x_domain: Tuple[float, float] = [0., 1.], 
-    t_domain: Tuple[float, float] = [0., 1.],
-    n_points: int = 10**4, 
-    n_points_init: int = 150, 
-    n_points_boundary: int = 150,
-    weight_f = 1.0, 
-    weight_b = 1.0, 
-    weight_i = 1.0, 
-    equation: str = 'linear', 
-    boundary_condition: str = 'reflective',
-    verbose = False,
-    random = False,
-    device = 'cpu'
-) -> torch.float:
-
-    if random:
-        x = torch.rand(n_points, 1) * (x_domain[1] - x_domain[0]) + x_domain[0]
-        x.requires_grad = True
-        x = x.to(device)
-        t = torch.rand(n_points, 1) * (t_domain[1] - t_domain[0]) + t_domain[0]
-        t.requires_grad = True
-        t = t.to(device)
-    if random:
-        x_init = torch.rand(n_points_init, 1) * (x_domain[1] - x_domain[0]) + x_domain[0]
-        x_init.requires_grad = True
-        x_init = x_init.to(device)
-    if random:
-        t_boundary = torch.rand(n_points_boundary, 1) * (t_domain[1] - t_domain[0]) + t_domain[0]
-        t_boundary.requires_grad = True
-        t_boundary = t_boundary.to(device)
-
-    final_loss = \
-        weight_f * interior_loss(pinn, x, t, equation) + \
-        weight_i * initial_loss(pinn, x_init, t_domain, initial_condition) + \
-        weight_b * boundary_loss(pinn, t_boundary, x_domain, boundary_condition)
-
-    if not verbose:
-        return final_loss
-    else:
         return (
             final_loss, 
-            interior_loss(pinn, x, t, equation), 
-            initial_loss(pinn, x_init, t_domain), 
-            boundary_loss(pinn, t_boundary, x_domain, boundary_condition)
+            self.weight_f * residual_loss, 
+            self.weight_i * initial_loss, 
+            self.weight_b * boundary_loss
         )
+
+    def _residual_loss(self, pinn: PINN) -> torch.Tensor:
+        x, t = self.cpoints.residual()
+        c = self.c
+        if self.equation == 'linear':
+            loss = dfdt(pinn, x, t, order=2) - c**2 * dfdx(pinn, x, t, order=2)
+        else: 
+            loss = dfdt(pinn, x, t, order=2) - c**2 * (dfdx(pinn, x, t, order=2) * f(pinn, x, t) + dfdx(pinn, x, t, order=1).pow(2))
+        return loss.pow(2).mean()
+
+    def _initial_loss(self, pinn: PINN):
+        x, t = self.cpoints.init()
+        f_initial: torch.Tensor = self.initial_condition(x)
+
+        loss_f = f(pinn, x, t) - f_initial 
+        loss_df = dfdt(pinn, x, t, order=1)
+
+        return loss_f.pow(2).mean() + loss_df.pow(2).mean()
+
+    def _boundary_loss(self, pinn: PINN):
+        x_left, t_left = self.cpoints.boundary_left()
+        x_right, t_right = self.cpoints.boundary_right()
+
+        if self.boundary_condition == 'periodic':
+            return (f(pinn, x_left, t_left) - f(pinn, x_right, t_right)).pow(2).mean()
+
+        if self.boundary_condition == 'reflective':
+            return dfdx(pinn, x_left, t_left).pow(2).mean() + dfdx(pinn, x_right, t_right).pow(2).mean()
+
+        if self.boundary_condition == 'zero':
+            return f(pinn, x_left, t_left).pow(2).mean() + f(pinn, x_right, t_right).pow(2).mean()
+
+        raise ValueError(f"Wrong boundary_condition: {self.boundary_condition}")

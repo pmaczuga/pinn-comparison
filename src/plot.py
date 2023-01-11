@@ -1,15 +1,81 @@
-from typing import Callable, List
+from typing import Tuple
+from src.func import Exact
 from src.pinn import PINN, f
+from src.utils import get_points, fname
 import torch
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import numpy as np
 
-DPI = 300
+from config import *
 
-def plot_solution(pinn: PINN, x: torch.Tensor, t: torch.Tensor, figsize=(8, 6), dpi=100):
+# -----------------------------------------------------------------------------
+# -----------------------------SOLUTION-COLOR-MAP------------------------------
+# -----------------------------------------------------------------------------
 
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+def plot_color(x, t, sol, title, cmap="viridis"):
+    fig, ax = plt.subplots()
+    ax.set_title(title)
+    ax.set_xlabel("t")
+    ax.set_ylabel("x")
+    c = ax.pcolormesh(t, x, sol, cmap=cmap)
+    ax.axes.set_aspect('equal')
+    fig.colorbar(c, ax=ax)
+    return fig
+
+
+def save_solution_plot(pinn: PINN, 
+                  exact: Exact, 
+                  tag: str, 
+                  x_domain: Tuple[float, float], 
+                  t_domain: Tuple[float, float],
+                  n_points_x: int = N_POINTS_PLOT,
+                  n_points_t: int = N_POINTS_PLOT,
+                  format: str = FORMAT):
+    x_raw, t_raw, x, t = get_points(x_domain, t_domain, n_points_x, n_points_t)
+    pinn_sol = pinn(x, t).reshape(n_points_x, n_points_t).detach()
+    exact_sol = exact(x, t).reshape(n_points_x, n_points_t)
+    diff = torch.abs(pinn_sol - exact_sol)
+    pinn_fig = plot_color(x_raw, t_raw, pinn_sol, "PINN solution", cmap=CMAP_SOL)
+    exact_fig = plot_color(x_raw, t_raw, exact_sol, "Exact solution", cmap=CMAP_SOL)
+    diff_fig = plot_color(x_raw, t_raw, diff, "Difference", cmap=CMAP_DIFF)
+
+
+    pinn_fig.savefig(fname(tag, "pinn", format), format=format, bbox_inches='tight', dpi=DPI)
+    exact_fig.savefig(fname(tag, "exact", format), format=format, bbox_inches='tight', dpi=DPI)
+    diff_fig.savefig(fname(tag, "diff", format), format=format, bbox_inches='tight', dpi=DPI)
+
+    return pinn_fig, exact_fig, diff_fig
+
+# -----------------------------------------------------------------------------
+# ------------------------------------LOSS-------------------------------------
+# -----------------------------------------------------------------------------
+
+def running_average(y, window=RUNNING_AVG_WINDOW):
+    cumsum = np.cumsum(np.insert(y, 0, 0)) 
+    return (cumsum[window:] - cumsum[:-window]) / float(window)
+
+
+def save_loss_plot(loss_values: torch.Tensor, tag: str):
+    average_loss = running_average(loss_values)
+    fig, ax = plt.subplots()
+    ax.set_title("Loss function (runnig average)")
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("Loss")
+    ax.plot(average_loss)
+    ax.set_yscale('log')
+
+    fig.savefig(fname(tag, "loss", FORMAT), format=FORMAT, bbox_inches='tight', dpi=DPI)
+
+    return fig
+
+# -----------------------------------------------------------------------------
+# ----------------------------------ANIMATION----------------------------------
+# -----------------------------------------------------------------------------
+
+def plot_anim(pinn: PINN, x: torch.Tensor, t: torch.Tensor, dpi=DPI):
+
+    fig, ax = plt.subplots()
     x_raw = torch.unique(x).reshape(-1, 1)
     t_raw = torch.unique(t)
         
@@ -28,58 +94,47 @@ def plot_solution(pinn: PINN, x: torch.Tensor, t: torch.Tensor, figsize=(8, 6), 
     n_frames = t_raw.shape[0]
     return FuncAnimation(fig, animate, frames=n_frames, interval=100, repeat=False)
 
-def plot_color(z: torch.Tensor, x: torch.Tensor, t: torch.Tensor, n_points_x, n_points_t, title, figsize=(8, 6), dpi=100, cmap="viridis"):
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
-    z_raw = z.detach().cpu().numpy()
-    x_raw = x.detach().cpu().numpy()
-    t_raw = t.detach().cpu().numpy()
-    X = x_raw.reshape(n_points_x, n_points_t)
-    T = t_raw.reshape(n_points_x, n_points_t)
-    Z = z_raw.reshape(n_points_x, n_points_t)
-    ax.set_title(title)
-    ax.set_xlabel("Time")
-    ax.set_ylabel("x")
-    c = ax.pcolormesh(T, X, Z, cmap=cmap)
-    fig.colorbar(c, ax=ax)
-    return fig
 
-def running_average(y, window=100):
-    cumsum = np.cumsum(np.insert(y, 0, 0)) 
-    return (cumsum[window:] - cumsum[:-window]) / float(window)
+def save_anim(pinn: PINN, 
+              tag: str,
+              x_domain: Tuple[float, float], 
+              t_domain: Tuple[float, float],
+              n_points_x: int = N_POINTS_PLOT,
+              n_points_t: int = N_POINTS_PLOT,
+              fps: int = FPS):
+    import matplotlib.animation as animation
+    x_raw, t_raw, x, t = get_points(x_domain, t_domain, n_points_x, n_points_t)
+    ani = plot_anim(pinn, x, t)
+    writer = animation.FFMpegWriter(fps=fps)
+    name = fname(tag, "anim", "mp4")
+    ani.save(name, writer=writer)
+    return ani
 
-def plot_initial(pinn: PINN,
-                 x: torch.Tensor,
-                 initial_condition: function):
-    u = f(pinn, x, torch.zeros_like(x))
-    return plot_initial(x, u, initial_condition)
+# -----------------------------------------------------------------------------
+# ------------------------------INITIAL-CONDITION------------------------------
+# -----------------------------------------------------------------------------
 
-def plot_initial(x: torch.Tensor,
-                 u: torch.Tensor,
-                 initial_condition: Callable[[torch.Tensor], torch.Tensor]
-                ):
-    init = initial_condition(x)
-    fig, ax = plt.subplots(dpi=DPI)
+def save_initial_plot(pinn: PINN, 
+                 exact: Exact, 
+                 tag: str,
+                 x_domain: Tuple[float, float], 
+                 n_points_x: int = N_POINTS_PLOT,
+                 dpi: int = DPI,
+                 format: str = FORMAT):
+    x_init_raw = torch.linspace(x_domain[0], x_domain[1], steps=n_points_x)
+    x_init = x_init_raw.reshape(-1, 1)
+
+    pinn_init = pinn(x_init, torch.zeros_like(x_init)).flatten().detach()
+    exact_init = exact(x_init, torch.zeros_like(x_init)).flatten()
+
+    fig, ax = plt.subplots()
     ax.set_title("Initial condition difference")
     ax.set_xlabel("x")
     ax.set_ylabel("u")
-    ax.plot(x.detach(), init.detach(), label="Initial condition")
-    ax.plot(x.detach(), u.detach(), '--' ,label="PINN solution")
+    ax.plot(x_init_raw, exact_init, label="Initial condition")
+    ax.plot(x_init_raw, pinn_init, '--' ,label="PINN solution")
     ax.legend()
+
+    name = fname(tag, "init", format)
+    fig.savefig(name, dpi=dpi, format=format, bbox_inches='tight')
     return fig
-
-def plot_loss(loss: List[float], window: int = 100):
-    average_loss = running_average(loss, window=window)
-    fig, ax = plt.subplots(dpi=DPI)
-    ax.set_title("Loss function (running average)")
-    ax.set_xlabel("Epoch")
-    ax.set_ylabel("Loss")
-    ax.plot(average_loss)
-    ax.set_yscale('log')
-    return fig 
-
-def plot_solution(x: torch.Tensor, 
-                  t: torch.Tensor, 
-                  n_points_x: int, 
-                  n_points_t: int):
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, dpi=DPI)
-    color = plot_color(z.cpu(), x.cpu(), t.cpu(), N_POINTS_X, N_POINTS_T, title="PINN solution (" + equation + " equation)")

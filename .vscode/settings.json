@@ -1,0 +1,39 @@
+{
+    "cSpell.words": [
+        "approximator",
+        "cmap",
+        "colorbar",
+        "cpoints",
+        "cuda",
+        "cumsum",
+        "dfdt",
+        "dfdx",
+        "Equispaced",
+        "linalg",
+        "logits",
+        "meshgrid",
+        "ndarray",
+        "optim",
+        "pcolormesh",
+        "PINN",
+        "randn",
+        "savefig",
+        "xlabel",
+        "ylabel",
+        "ylim",
+        "yscale"
+    ],
+    "editor.rulers": [79],
+    "cSpell.languageSettings": [
+        {
+            // use with Python files
+            "languageId": "python",
+            // Exclude code.
+            "ignoreRegExpList": [
+                "/^\\s*from.*import/gm",
+                "/^\\s*import .*"
+            ]
+        }
+    ],
+    "python.analysis.typeCheckingMode": "basic"
+}
