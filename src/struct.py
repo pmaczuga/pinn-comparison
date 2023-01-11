@@ -20,6 +20,7 @@ class Params(Struct):
         self.weight_residual = kwargs.get("weight_residual", WEIGHT_RESIDUAL)
         self.weight_initial = kwargs.get("weight_initial", WEIGHT_INITIAL)
         self.weight_boundary = kwargs.get("weight_boundary", WEIGHT_BOUNDARY)
+        self.adapt_weights = kwargs.get("adapt_weights", ADAPT_WEIGHTS)
         self.layers = kwargs.get("layers", LAYERS)
         self.neurons_per_layer = kwargs.get("neurons_per_layer", NEURONS_PER_LAYER)
         self.epochs = kwargs.get("epochs", EPOCHS)

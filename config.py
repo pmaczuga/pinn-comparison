@@ -9,9 +9,10 @@ N_POINTS_T = 150                    # Number of points in t axis
 N_POINTS_RAND = 10000               # Number of points when sampling randomly
 N_POINTS_INIT = 150                 # Number of points, where the PINN will calculate initial loss
 N_POINTS_BOUNDARY = 150             # Number of points, where the PINN will calculate boundary loss
-WEIGHT_RESIDUAL = 1.0               # Weight of residual part of loss function
-WEIGHT_INITIAL = 1.0                # Weight of initial part of loss function
-WEIGHT_BOUNDARY = 1.0               # Weight of boundary part of loss function
+WEIGHT_RESIDUAL = 1.0               # Weight of residual part of loss function. Only used when ADAPT_WEIGHTS is False
+WEIGHT_INITIAL = 1.0                # Weight of initial part of loss function. Only used when ADAPT_WEIGHTS is False
+WEIGHT_BOUNDARY = 1.0               # Weight of boundary part of loss function. Only used when ADAPT_WEIGHTS is False
+ADAPT_WEIGHTS = True                # Whether to use adaptive weights. 
 LAYERS = 4
 NEURONS_PER_LAYER = 40
 EPOCHS = 20_000
@@ -30,7 +31,7 @@ COLLOCATION_POINTS = 'const'        # 'const', 'random', 'latin'
 # ----------------------------------PLOTTING-----------------------------------
 # -----------------------------------------------------------------------------
 
-N_POINTS_PLOT = 200
+N_POINTS_PLOT = 300
 DPI = 300
 FPS = 60
 RUNNING_AVG_WINDOW = 300

@@ -14,7 +14,8 @@ class Loss:
                  c: float = 1,
                  weight_f: float = 1.0, 
                  weight_b: float = 1.0, 
-                 weight_i: float = 1.0):
+                 weight_i: float = 1.0,
+                 adapt_weights: bool = False):
         self.cpoints = cpoints
         self.initial_condition = initial_condition
         self.boundary_condition = boundary_condition
@@ -23,6 +24,7 @@ class Loss:
         self.weight_f = weight_f
         self.weight_b = weight_b
         self.weight_i = weight_i
+        self.adapt_weights = adapt_weights
 
     def __call__(self, pinn: PINN) -> torch.Tensor:
         return self.verbose(pinn)[0]
@@ -32,16 +34,22 @@ class Loss:
         initial_loss = self._initial_loss(pinn)
         boundary_loss = self._boundary_loss(pinn)
 
+        weight_f, weight_i, weight_b = self.weight_f, self.weight_i, self.weight_b
+        if self.adapt_weights:
+            loss = torch.tensor([residual_loss, initial_loss, boundary_loss])
+            minimum = torch.min(loss)
+            weight_f, weight_i, weight_b = loss / minimum
+
         final_loss = \
-            self.weight_f * residual_loss + \
-            self.weight_i * initial_loss + \
-            self.weight_b * boundary_loss
+            weight_f * residual_loss + \
+            weight_i * initial_loss + \
+            weight_b * boundary_loss
 
         return (
             final_loss, 
-            self.weight_f * residual_loss, 
-            self.weight_i * initial_loss, 
-            self.weight_b * boundary_loss
+            weight_f * residual_loss, 
+            weight_i * initial_loss, 
+            weight_b * boundary_loss
         )
 
     def _residual_loss(self, pinn: PINN) -> torch.Tensor:
