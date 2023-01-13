@@ -14,7 +14,7 @@ def get_device() -> torch.device:
     return device
 
 def time_as_string():
-    time.strftime("%y%m%d-%H%M%S")
+    return time.strftime("%y%m%d-%H%M%S")
 
 def fname(tag, name, format):
     return f"results/{tag}/{tag}_{name}.{format}"

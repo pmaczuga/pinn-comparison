@@ -40,7 +40,7 @@ class Exact:
         a = self.a
         phi = self.phi
         c = self.c
-        return a * tri(phi * torch.pi * x) * tri(c * phi * torch.pi * t)
+        return a * tri(phi * torch.pi * x) * torch.cos(c * phi * torch.pi * t)
 
     @classmethod
     def from_params(cls, params: Params) -> Exact:
