@@ -70,7 +70,8 @@ def train_pinn_from_params(params: Params,
         params.c,
         params.weight_residual,
         params.weight_boundary,
-        params.weight_initial
+        params.weight_initial,
+        adapt_weights=params.adapt_weights
     )
 
     # Train the PINN
