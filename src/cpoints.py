@@ -1,6 +1,7 @@
 from abc import ABC
 from typing import Dict, Tuple, Type
 import torch
+import numpy as np
 
 class CPoints(ABC):
     """Collocation points"""
@@ -95,6 +96,8 @@ class RandomCPoints(CPoints):
             .uniform_(self.t_domain[0], self.t_domain[1]) \
             .reshape(-1, 1) \
             .to(self.device)
+        x.requires_grad = True
+        t.requires_grad = True
         return (x, t)
 
     def init(self) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -103,6 +106,8 @@ class RandomCPoints(CPoints):
             .reshape(-1, 1) \
             .to(self.device)
         t = torch.full_like(x, self.t_domain[0])
+        x.requires_grad = True
+        t.requires_grad = True
         return (x, t)
 
     def boundary_left(self) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -111,6 +116,8 @@ class RandomCPoints(CPoints):
             .reshape(-1, 1) \
             .to(self.device)
         x_left = torch.full_like(t_left, self.x_domain[0])
+        t_left.requires_grad = True
+        x_left.requires_grad = True
         return (x_left, t_left)
 
     def boundary_right(self) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -119,12 +126,70 @@ class RandomCPoints(CPoints):
             .reshape(-1, 1) \
             .to(self.device)
         x_right = torch.full_like(t_right, self.x_domain[1])
+        t_right.requires_grad = True
+        x_right.requires_grad = True
         return (x_right, t_right)
 
 
 # TODO
+from scipy.stats import qmc
 class LatinHypercubeCPoints(CPoints):
-    pass
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.sampler_2d = qmc.LatinHypercube(d=2)
+        self.sampler_1d = qmc.LatinHypercube(d=1)
+        self.l_bounds = [self.x_domain[0], self.t_domain[0]]
+        self.u_bounds = [self.x_domain[1], self.t_domain[1]]
+
+    def residual(self) -> Tuple[torch.Tensor, torch.Tensor]:
+        sample = self.sampler_2d.random(n=self.n_points_rand)
+        sample = qmc.scale(sample, self.l_bounds, self.u_bounds)
+        sample = sample.astype("float32")
+        x = torch.tensor(sample[:,0]) \
+            .reshape(-1, 1) \
+            .to(self.device)
+        t = torch.tensor(sample[:,1]) \
+            .reshape(-1, 1) \
+            .to(self.device)
+        x.requires_grad = True
+        t.requires_grad = True
+        return (x, t)
+
+    def init(self) -> Tuple[torch.Tensor, torch.Tensor]:
+        sample = self.sampler_1d.random(n=self.n_points_init)
+        sample = qmc.scale(sample, self.l_bounds[0], self.u_bounds[0])
+        sample = sample.astype("float32")
+        x = torch.tensor(sample) \
+            .reshape(-1, 1) \
+            .to(self.device)
+        t = torch.full_like(x, self.t_domain[0])
+        x.requires_grad = True
+        t.requires_grad = True
+        return (x, t)
+
+    def boundary_left(self) -> Tuple[torch.Tensor, torch.Tensor]:
+        sample = self.sampler_1d.random(n=self.n_points_boundary)
+        sample = qmc.scale(sample, self.l_bounds[1], self.u_bounds[1])
+        sample = sample.astype("float32")
+        t_left = torch.tensor(sample) \
+            .reshape(-1, 1) \
+            .to(self.device)
+        x_left = torch.full_like(t_left, self.x_domain[0])
+        t_left.requires_grad = True
+        x_left.requires_grad = True
+        return (x_left, t_left)
+
+    def boundary_right(self) -> Tuple[torch.Tensor, torch.Tensor]:
+        sample = self.sampler_1d.random(n=self.n_points_boundary)
+        sample = qmc.scale(sample, self.l_bounds[1], self.u_bounds[1])
+        sample = sample.astype("float32")
+        t_right = torch.tensor(sample) \
+            .reshape(-1, 1) \
+            .to(self.device)
+        x_right = torch.full_like(t_right, self.x_domain[1])
+        t_right.requires_grad = True
+        x_right.requires_grad = True
+        return (x_right, t_right)
 
 def default_cpoints() -> CPoints:
     return EquispacedCPoints(100, 100, 10000, 100, 100, (0,1), (0,1), torch.device("cpu"))

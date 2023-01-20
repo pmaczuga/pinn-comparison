@@ -1,2 +1,2 @@
 length,total_time,n_points_x,n_points_t,n_points_rand,n_points_init,n_points_boundary,weight_residual,weight_initial,weight_boundary,adapt_weights,layers,neurons_per_layer,epochs,learning_rate,activation,c,a,phi,equation,boundary_condition,hard_constraint,exact,collocation_points,tag,loss,loss_residual,loss_initial,loss_boundary,l2_error,l2_error_init
-1.0,1.0,150,150,10000,150,150,1.0,1.0,1.0,False,4,80,40000,0.002,tanh,2.0,0.5,6.0,linear,zero,False,True,const,dir_c2_A05_phi6,0.07436352223157883,0.0004659829137381166,0.06818374246358871,0.005713798105716705,tensor(71.0953),tensor(4.5100)
+1.0,1.0,150,150,10000,150,150,1.0,1.0,1.0,False,4,80,60000,0.002,tanh,2.0,0.5,6.0,linear,zero,False,True,const,dir_c2_A05_phi6,1,2,3,4,5,6
