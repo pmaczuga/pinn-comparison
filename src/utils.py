@@ -1,5 +1,6 @@
 import time
 from typing import Tuple
+from src.domain import Domain, Domain1D
 from src.func import Exact
 from src.pinn import PINN
 from src.struct import Params
@@ -24,12 +25,11 @@ def get_domains(params: Params) -> Tuple[Tuple[float, float], Tuple[float, float
     t_domain = (0.0, params.total_time)
     return x_domain, t_domain
 
-def get_points(x_domain: Tuple[float, float], 
-               t_domain: Tuple[float, float],
+def get_points(domain: Domain, 
                n_points_x: int = N_POINTS_PLOT,
                n_points_t: int = N_POINTS_PLOT):
-    x_raw = torch.linspace(x_domain[0], x_domain[1], steps=n_points_x).detach()
-    t_raw = torch.linspace(t_domain[0], t_domain[1], steps=n_points_t).detach()
+    x_raw = torch.linspace(domain.x.l, domain.x.u, steps=n_points_x).detach()
+    t_raw = torch.linspace(domain.t.l, domain.t.u, steps=n_points_t).detach()
     grids = torch.meshgrid(x_raw, t_raw, indexing="ij")
     x = grids[0].flatten().reshape(-1, 1)
     t = grids[1].flatten().reshape(-1, 1)
@@ -37,11 +37,10 @@ def get_points(x_domain: Tuple[float, float],
 
 def l2_error(pinn: PINN, 
             exact: Exact,
-            x_domain: Tuple[float, float], 
-            t_domain: Tuple[float, float],
+            domain: Domain,
             n_points_x: int = N_POINTS_PLOT,
             n_points_t: int = N_POINTS_PLOT):
-    x_raw, t_raw, x, t = get_points(x_domain, t_domain, n_points_x, n_points_t)
+    x_raw, t_raw, x, t = get_points(domain, n_points_x, n_points_t)
     pinn_sol = pinn(x, t).reshape(n_points_x, n_points_t).detach()
     exact_sol = exact(x, t).reshape(n_points_x, n_points_t)
     diff = pinn_sol - exact_sol
@@ -49,9 +48,9 @@ def l2_error(pinn: PINN,
 
 def l2_error_init(pinn: PINN,
                   exact: Exact,
-                  x_domain: Tuple[float, float], 
+                  x_domain: Domain1D, 
                   n_points_x: int = N_POINTS_PLOT):
-    x_init_raw = torch.linspace(x_domain[0], x_domain[1], steps=n_points_x)
+    x_init_raw = torch.linspace(x_domain.l, x_domain.u, steps=n_points_x)
     x_init = x_init_raw.reshape(-1, 1)
     pinn_init = pinn(x_init, torch.zeros_like(x_init)).flatten().detach()
     exact_init = exact(x_init, torch.zeros_like(x_init)).flatten()

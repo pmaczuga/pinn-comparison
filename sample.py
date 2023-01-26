@@ -3,6 +3,7 @@ import torch.nn as nn
 import os
 import datetime
 from src.cpoints import get_cpoints
+from src.domain import Domain
 
 from src.struct import Params
 from src.pinn import PINN
@@ -32,37 +33,15 @@ for dirname in dirnames:
     pinn_filename = os.path.join(dirname, f"{tag}_state.pth")
     params, result = load_result(result_filename)
     pinn = load_pinn(params, pinn_filename)
-    x_domain = (0.0, params.length)
-    t_domain = (0.0, params.total_time)
-    cpoints_class = get_cpoints(params.collocation_points)
-    cpoints = cpoints_class(
-        params.n_points_x, 
-        params.n_points_t, 
-        params.n_points_rand, 
-        params.n_points_init, 
-        params.n_points_boundary, 
-        x_domain, 
-        t_domain,
-        device
-    )
+    domain = Domain.from_params(params)
     initial_condition = InitialCondition.from_params(params)
     exact = Exact.from_params(params)
+    loss_fn = Loss.from_params(params)
 
-    loss_fn = Loss(
-        cpoints,
-        initial_condition,
-        params.equation,
-        params.boundary_condition,
-        params.c,
-        params.weight_residual,
-        params.weight_boundary,
-        params.weight_initial,
-        adapt_weights=params.adapt_weights
-    )
     losses = loss_fn.verbose(pinn)
 
-    l2 = l2_error(pinn, exact, x_domain, t_domain)
-    l2_init = l2_error_init(pinn, exact, x_domain)
+    l2 = l2_error(pinn, exact, domain)
+    l2_init = l2_error_init(pinn, exact, domain.x)
     
     losses = list(map(lambda x: x.item(), losses))
     result = Result(tag, losses[0], losses[1], losses[2], losses[3], l2, l2_init)

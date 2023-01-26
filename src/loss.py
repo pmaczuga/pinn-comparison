@@ -1,9 +1,13 @@
+from __future__ import annotations
+
 from typing import Tuple
 from src.cpoints import CPoints
 from src.func import InitialCondition
 from src.pinn import PINN, dfdx, dfdt, f
 
 import torch
+
+from src.struct import Params
 
 class Loss:
     def __init__(self, 
@@ -84,3 +88,17 @@ class Loss:
             return f(pinn, x_left, t_left).pow(2).mean() + f(pinn, x_right, t_right).pow(2).mean()
 
         raise ValueError(f"Wrong boundary_condition: {self.boundary_condition}")
+
+    @classmethod
+    def from_params(cls, params: Params, device: torch.device = torch.device("cpu")) -> Loss:
+        return cls(
+        CPoints.from_params(params, device=device),
+        InitialCondition.from_params(params),
+        params.equation,
+        params.boundary_condition,
+        params.c,
+        params.weight_residual,
+        params.weight_boundary,
+        params.weight_initial,
+        adapt_weights=params.adapt_weights
+    )

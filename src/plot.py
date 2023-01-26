@@ -1,9 +1,11 @@
 from typing import Tuple
+from src.domain import Domain, Domain1D
 from src.func import Exact
 from src.pinn import PINN, f
 from src.utils import get_points, fname
 import torch
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 from matplotlib.animation import FuncAnimation
 import numpy as np
 
@@ -13,7 +15,7 @@ from config import *
 # -----------------------------SOLUTION-COLOR-MAP------------------------------
 # -----------------------------------------------------------------------------
 
-def plot_color(x, t, sol, title, cmap="viridis"):
+def plot_color(x, t, sol, title, cmap="viridis") -> Figure:
     fig, ax = plt.subplots()
     ax.set_title(title)
     ax.set_xlabel("t")
@@ -23,23 +25,29 @@ def plot_color(x, t, sol, title, cmap="viridis"):
     fig.colorbar(c, ax=ax)
     return fig
 
-
-def save_solution_plot(pinn: PINN, 
+def solution_plot(pinn: PINN, 
                   exact: Exact, 
                   tag: str, 
-                  x_domain: Tuple[float, float], 
-                  t_domain: Tuple[float, float],
+                  domain: Domain,
                   n_points_x: int = N_POINTS_PLOT,
-                  n_points_t: int = N_POINTS_PLOT,
-                  format: str = FORMAT):
-    x_raw, t_raw, x, t = get_points(x_domain, t_domain, n_points_x, n_points_t)
+                  n_points_t: int = N_POINTS_PLOT) -> Tuple[Figure, Figure, Figure]:
+    x_raw, t_raw, x, t = get_points(domain, n_points_x, n_points_t)
     pinn_sol = pinn(x, t).reshape(n_points_x, n_points_t).detach()
     exact_sol = exact(x, t).reshape(n_points_x, n_points_t)
     diff = torch.abs(pinn_sol - exact_sol)
     pinn_fig = plot_color(x_raw, t_raw, pinn_sol, "PINN solution", cmap=CMAP_SOL)
     exact_fig = plot_color(x_raw, t_raw, exact_sol, "Exact solution", cmap=CMAP_SOL)
     diff_fig = plot_color(x_raw, t_raw, diff, "Difference", cmap=CMAP_DIFF)
+    return pinn_fig, exact_fig, diff_fig
 
+def save_solution_plot(pinn: PINN, 
+                  exact: Exact, 
+                  tag: str, 
+                  domain: Domain,
+                  n_points_x: int = N_POINTS_PLOT,
+                  n_points_t: int = N_POINTS_PLOT,
+                  format: str = FORMAT) -> Tuple[Figure, Figure, Figure]:
+    pinn_fig, exact_fig, diff_fig = solution_plot(pinn, exact, tag, domain, n_points_x, n_points_t)
 
     pinn_fig.savefig(fname(tag, "pinn", format), format=format, bbox_inches='tight', dpi=DPI)
     exact_fig.savefig(fname(tag, "exact", format), format=format, bbox_inches='tight', dpi=DPI)
@@ -51,12 +59,11 @@ def save_solution_plot(pinn: PINN,
 # ------------------------------------LOSS-------------------------------------
 # -----------------------------------------------------------------------------
 
-def running_average(y, window=RUNNING_AVG_WINDOW):
+def running_average(y, window=RUNNING_AVG_WINDOW) -> np.ndarray:
     cumsum = np.cumsum(np.insert(y, 0, 0)) 
     return (cumsum[window:] - cumsum[:-window]) / float(window)
 
-
-def save_loss_plot(loss_values: torch.Tensor, tag: str):
+def loss_plot(loss_values: torch.Tensor, tag: str) -> Figure:
     average_loss = running_average(loss_values)
     fig, ax = plt.subplots()
     ax.set_title("Loss function (runnig average)")
@@ -64,16 +71,18 @@ def save_loss_plot(loss_values: torch.Tensor, tag: str):
     ax.set_ylabel("Loss")
     ax.plot(average_loss)
     ax.set_yscale('log')
+    return fig
 
+def save_loss_plot(loss_values: torch.Tensor, tag: str) -> Figure:
+    fig = loss_plot(loss_values, tag)
     fig.savefig(fname(tag, "loss", FORMAT), format=FORMAT, bbox_inches='tight', dpi=DPI)
-
     return fig
 
 # -----------------------------------------------------------------------------
 # ----------------------------------ANIMATION----------------------------------
 # -----------------------------------------------------------------------------
 
-def plot_anim(pinn: PINN, x: torch.Tensor, t: torch.Tensor, dpi=DPI):
+def plot_anim(pinn: PINN, x: torch.Tensor, t: torch.Tensor, dpi=DPI) -> FuncAnimation:
 
     fig, ax = plt.subplots()
     x_raw = torch.unique(x).reshape(-1, 1)
@@ -97,13 +106,12 @@ def plot_anim(pinn: PINN, x: torch.Tensor, t: torch.Tensor, dpi=DPI):
 
 def save_anim(pinn: PINN, 
               tag: str,
-              x_domain: Tuple[float, float], 
-              t_domain: Tuple[float, float],
+              domain: Domain,
               n_points_x: int = N_POINTS_PLOT,
               n_points_t: int = N_POINTS_PLOT,
-              fps: int = FPS):
+              fps: int = FPS) -> FuncAnimation:
     import matplotlib.animation as animation
-    x_raw, t_raw, x, t = get_points(x_domain, t_domain, n_points_x, n_points_t)
+    x_raw, t_raw, x, t = get_points(domain, n_points_x, n_points_t)
     ani = plot_anim(pinn, x, t)
     writer = animation.FFMpegWriter(fps=fps)
     name = fname(tag, "anim", "mp4")
@@ -114,14 +122,12 @@ def save_anim(pinn: PINN,
 # ------------------------------INITIAL-CONDITION------------------------------
 # -----------------------------------------------------------------------------
 
-def save_initial_plot(pinn: PINN, 
+def initial_plot(pinn: PINN, 
                  exact: Exact, 
                  tag: str,
-                 x_domain: Tuple[float, float], 
-                 n_points_x: int = N_POINTS_PLOT,
-                 dpi: int = DPI,
-                 format: str = FORMAT):
-    x_init_raw = torch.linspace(x_domain[0], x_domain[1], steps=n_points_x)
+                 x_domain: Domain1D, 
+                 n_points_x: int = N_POINTS_PLOT) -> Figure:
+    x_init_raw = torch.linspace(x_domain.l, x_domain.u, steps=n_points_x)
     x_init = x_init_raw.reshape(-1, 1)
 
     pinn_init = pinn(x_init, torch.zeros_like(x_init)).flatten().detach()
@@ -134,6 +140,16 @@ def save_initial_plot(pinn: PINN,
     ax.plot(x_init_raw, exact_init, label="Initial condition")
     ax.plot(x_init_raw, pinn_init, '--' ,label="PINN solution")
     ax.legend()
+    return fig
+
+def save_initial_plot(pinn: PINN, 
+                 exact: Exact, 
+                 tag: str,
+                 x_domain: Domain1D, 
+                 n_points_x: int = N_POINTS_PLOT,
+                 dpi: int = DPI,
+                 format: str = FORMAT) -> Figure:
+    fig = initial_plot(pinn, exact, tag, x_domain, n_points_x)
 
     name = fname(tag, "init", format)
     fig.savefig(name, dpi=dpi, format=format, bbox_inches='tight')

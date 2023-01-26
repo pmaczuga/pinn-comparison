@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import os
 import datetime
+from src.domain import Domain
 
 from src.struct import Params
 from src.pinn import PINN
@@ -30,7 +31,7 @@ params_hard_abbr = ["soft", "hard"]
 params_weights = [False, True]
 params_weights_abbr = ["cweight", "aweight"]
 
-params_cpoints = [False, True]
+params_cpoints = ['const', 'latin']
 params_cpoints_abbr = ["pconst", "platin"]
 
 device = get_device()
@@ -47,8 +48,7 @@ for eq, eq_abbr in zip(params_eq, params_eq_abbr):
                     print(f"Training PINN: {i}/{all}")
                     os.mkdir(f"results/{tag}")
                     params = Params(activation=act, hard_constraint=hard, adapt_weights=weights, collocation_points=cpoints, **eq)
-                    x_domain = (0, params.length)
-                    t_domain = (0, params.total_time)
+                    domain = Domain.from_params(params)
                     pinn, loss, result = train_pinn_from_params(params, tag, device, print_each=None)
                     exact = Exact.from_params(params)
                     # result = Result(tag, 1,2,3,4,5,6)
@@ -57,10 +57,10 @@ for eq, eq_abbr in zip(params_eq, params_eq_abbr):
                     save_result(params, result)
                     save_pinn(pinn, tag)
                     save_loss(loss, tag)
-                    save_solution_plot(pinn, exact, tag, x_domain, t_domain)
-                    save_initial_plot(pinn, exact, tag, x_domain)
+                    save_solution_plot(pinn, exact, tag, domain)
+                    save_initial_plot(pinn, exact, tag, domain.x)
                     save_loss_plot(loss, tag)
-                    save_anim(pinn, tag, x_domain, t_domain)
+                    save_anim(pinn, tag, domain)
                     torch.cuda.empty_cache()
                     i = i + 1
 
