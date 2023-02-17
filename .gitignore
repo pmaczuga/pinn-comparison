@@ -1,7 +1,10 @@
 __pycache__/
 *.py[cod]
+<<<<<<< Updated upstream
 
 .ipynb_checkpoints/
 
 # results
 results/
+=======
+>>>>>>> Stashed changes
